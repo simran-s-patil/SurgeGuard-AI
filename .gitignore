@@ -1,19 +1,11 @@
-# Python / node
 .venv/
 venv/
 __pycache__/
 node_modules/
 dist/
 build/
-
-# env / credentials
 .env
 *.env
 *.key
-
-# IDE
 .vscode/
-*.log
-
-# OS
 .DS_Store
