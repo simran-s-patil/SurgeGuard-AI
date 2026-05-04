@@ -5,7 +5,7 @@
 
 ## ✅ Phase 1: Synthetic Data Generation (Completed)
 **Goal:** Create a dataset for the AI model without needing real patient data.
-* **What we did:** Generated 100 synthetic surgical frames (`output/images/`) and matching ground-truth masks (`output/ground_truth/`).
+* **What we did:** Generated 1000 synthetic surgical frames (`output/images/`) and matching ground-truth masks (`output/ground_truth/`).
 * **Why it matters:** It simulates healthy tissue vs. bleeding tissue, allowing us to train and prove the AI works during the hackathon.
 
 ## ✅ Phase 2: AI / ML Detection Engine (Completed)

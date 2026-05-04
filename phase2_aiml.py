@@ -95,14 +95,21 @@ class UNetGradCAM:
         return heatmap.cpu().numpy(), pred_mask.detach().cpu().squeeze().numpy()
 
 def overlay_gradcam(image, heatmap, colormap=cv2.COLORMAP_JET):
-    # Resize heatmap to match image dimensions
-    heatmap_resized = cv2.resize(heatmap, (image.shape[1], image.shape[0]))
+    # Resize heatmap to match image dimensions using high-quality Cubic Interpolation
+    heatmap_resized = cv2.resize(heatmap, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_CUBIC)
+    
+    # Apply a heavy Gaussian Blur to smooth out "grid/checkerboard" artifacts from the CNN
+    heatmap_resized = cv2.GaussianBlur(heatmap_resized, (31, 31), 0)
+    
+    # Normalize again after blurring to maintain brightness
+    if np.max(heatmap_resized) > 0:
+        heatmap_resized = heatmap_resized / np.max(heatmap_resized)
     
     # Scale to 0-255 and apply colormap
     heatmap_colored = np.uint8(255 * heatmap_resized)
     heatmap_colored = cv2.applyColorMap(heatmap_colored, colormap)
     
-    # Overlay using alpha blend
+    # Overlay using alpha blend (40% heatmap, 60% original image)
     overlay = cv2.addWeighted(image, 0.6, heatmap_colored, 0.4, 0)
     return overlay
 

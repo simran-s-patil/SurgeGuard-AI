@@ -28,29 +28,43 @@ SurgeGuard-AI is a secure, AI-powered system designed to detect occult (hidden) 
 * **LSB Watermarking:** Embedded an invisible, secure text signature (`SURGEGUARD_SECURE_AUTH`) inside the least significant bits of the image pixels to prove the video frame is authentic.
 * **Cryptographic Signatures:** Added an `HMAC-SHA256` hash verifier. If an attacker alters even a single pixel of the video, the signature breaks and the system instantly flags `Attack Detected!`.
 
-### 🚀 Phase 4: Dashboard & Web Integration (Pending)
-**Goal:** Tie all the backend engines into a usable product.
-* **Plan:** Build a UI/API (using Flask, Streamlit, etc.) where a user can stream a surgical video.
-* **Features:** The dashboard will run Phase 2 AI and Phase 3 Security checks in real-time, displaying alerts, heatmaps, and security status on a single screen for the hackathon judges.
+### ✅ Phase 4: Consolidated HUD Inference Engine
+**Goal:** Tie all the backend engines into a single powerful delivery tool.
+* **Implementation:** Instead of a complex web dashboard, we consolidated everything into `surgeguard_inference.py`.
+* **Features:** A real-time "Heads-Up Display" (HUD) that shows:
+    * **Live AI Segmentation:** Real-time masks identifying blood.
+    * **Grad-CAM Heatmaps:** Transparent visualization of the AI's attention.
+    * **Cyber-Shield Status:** Cryptographic HMAC-SHA256 verification of every frame.
+    * **Occult Bleed Alerts:** Temporal monitoring of pixel area growth.
 
 ## Technologies Used
 
 * **AI & Machine Learning:** PyTorch (`torch`), U-Net, Grad-CAM
 * **Computer Vision:** OpenCV (`cv2`), NumPy (`np`)
 * **Cybersecurity:** `hashlib`, `hmac` (SHA-256), LSB Watermarking
-* **Data Management:** Python `collections.deque`
+* **Visualization:** Streamlit (UI prototyping), OpenCV HUD
 
-## Installation and Setup
+## How to Run
 
-1. Clone the repository.
-2. Install the required dependencies:
+1. **Install Dependencies:**
    ```bash
    pip install torch torchvision opencv-python numpy
    ```
-3. Run the individual phase test scripts to verify functionality:
-   * `python phase2_aiml.py`
-   * `python test_phase2_visual.py`
-   * `python phase3_cyber.py`
+
+2. **Generate Demo Assets:**
+   ```bash
+   python synthetic_generator.py 1000
+   python create_demo_video.py
+   ```
+
+3. **Run the Prediction HUD:**
+   ```bash
+   # Run on the demo video
+   python surgeguard_inference.py --input output/demo_surgery.mp4
+   
+   # Run on a directory of real images (e.g., MICCAI dataset)
+   python surgeguard_inference.py --input "/path/to/dataset"
+   ```
 
 ## License
 [Add License Here]

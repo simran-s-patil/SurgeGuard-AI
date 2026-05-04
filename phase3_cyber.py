@@ -82,8 +82,20 @@ def extract_watermark(image_path):
 
 # --- 2. Cryptographic Signatures (HMAC-SHA256 for Hackathon compatibility) ---
 # Note: Using HMAC as a lightweight asymmetric alternative for standard signing
+def get_secret_key():
+    key_path = "models/secret.key"
+    if os.path.exists(key_path):
+        with open(key_path, 'rb') as f:
+            return f.read()
+    else:
+        key = os.urandom(32)
+        Path(key_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(key_path, 'wb') as f:
+            f.write(key)
+        return key
+
 def generate_secret_key():
-    return os.urandom(32)
+    return get_secret_key()
 
 def compute_frame_hash(img_path):
     sha256 = hashlib.sha256()

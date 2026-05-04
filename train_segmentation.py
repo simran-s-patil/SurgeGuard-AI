@@ -63,11 +63,15 @@ class UNet(nn.Module):
         return self.out(u3)
 
 # --- Dataset Loader ---
+import torchvision.transforms.functional as TF
+import random
+
 class SyntheticSurgicalDataset(Dataset):
-    def __init__(self, img_dir, mask_dir):
+    def __init__(self, img_dir, mask_dir, augment=False):
         self.img_dir = Path(img_dir)
         self.mask_dir = Path(mask_dir)
         self.images = list(self.img_dir.glob("*.png"))
+        self.augment = augment
 
     def __len__(self):
         return len(self.images)
@@ -79,35 +83,57 @@ class SyntheticSurgicalDataset(Dataset):
         image = cv2.imread(img_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image = cv2.resize(image, (128, 128)) # Smaller for fast hackathon training
-        image = image.astype(np.float32) / 255.0
-        image = np.transpose(image, (2, 0, 1))
-
+        
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
         mask = cv2.resize(mask, (128, 128))
-        mask = mask.astype(np.float32) / 255.0
-        mask = np.expand_dims(mask, axis=0)
+        
+        # Convert to PyTorch tensors
+        image_t = torch.tensor(image.astype(np.float32) / 255.0).permute(2, 0, 1)
+        mask_t = torch.tensor(mask.astype(np.float32) / 255.0).unsqueeze(0)
+        
+        if self.augment:
+            # Spatial augmentations (applied to both)
+            if random.random() > 0.5:
+                image_t = TF.hflip(image_t)
+                mask_t = TF.hflip(mask_t)
+            if random.random() > 0.5:
+                image_t = TF.vflip(image_t)
+                mask_t = TF.vflip(mask_t)
+                
+            # Color augmentations (applied only to image)
+            hue_factor = random.uniform(-0.4, 0.4)
+            image_t = TF.adjust_hue(image_t, hue_factor)
+            sat_factor = random.uniform(0.5, 1.5)
+            image_t = TF.adjust_saturation(image_t, sat_factor)
+            bright_factor = random.uniform(0.7, 1.3)
+            image_t = TF.adjust_brightness(image_t, bright_factor)
 
-        return torch.tensor(image), torch.tensor(mask)
+        return image_t, mask_t
 
-from torch.utils.data import random_split
+from torch.utils.data import Subset
 
 def train_unet():
-    device = torch.device('cpu') # Forcing CPU for hackathon compatibility as requested
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = UNet().to(device)
     
-    dataset = SyntheticSurgicalDataset("output/synthetic_twins", "output/ground_truth")
+    dataset_train = SyntheticSurgicalDataset("output/images", "output/ground_truth", augment=True)
+    dataset_val = SyntheticSurgicalDataset("output/images", "output/ground_truth", augment=False)
+    
     # If dataset is empty, skip gracefully
-    if len(dataset) == 0:
-        print("No training data found. Please run synthetic_generator.py first.")
+    if len(dataset_train) == 0:
+        print("No training data found in output/images. Please generate data first.")
         return
     
     # Data Leakage Fix: Proper train/val/test split (80/10/10)
-    total_size = len(dataset)
+    total_size = len(dataset_train)
     train_size = int(0.8 * total_size)
     val_size = int(0.1 * total_size)
     test_size = total_size - train_size - val_size
     
-    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
+    # Fixed random split for separate augment and no-augment datasets
+    indices = torch.randperm(total_size).tolist()
+    train_dataset = Subset(dataset_train, indices[:train_size])
+    val_dataset = Subset(dataset_val, indices[train_size:train_size+val_size])
     
     train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False)
@@ -115,7 +141,7 @@ def train_unet():
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     
-    epochs = 10
+    epochs = 20
     print(f"Starting Training for {epochs} epochs on {device}...")
     
     for epoch in range(epochs):

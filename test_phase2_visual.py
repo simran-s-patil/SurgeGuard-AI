@@ -4,6 +4,7 @@ import numpy as np
 import os
 from pathlib import Path
 import glob
+import random
 
 from train_segmentation import UNet
 from phase2_aiml import UNetGradCAM, overlay_gradcam
@@ -25,12 +26,17 @@ def test_on_real_data(img_dir="output/images", out_dir="output/phase2_results", 
     # Ensure output directory exists
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     
-    # Get image paths
-    img_paths = sorted(glob.glob(f"{img_dir}/*.png"))[:num_images]
+    # Get image paths (support png and jpg)
+    all_paths = []
+    for ext in ['*.png', '*.jpg', '*.jpeg']:
+        all_paths.extend(glob.glob(os.path.join(img_dir, ext)))
     
-    if not img_paths:
+    if not all_paths:
         print(f"No images found in {img_dir}")
         return
+
+    # Select random images if there are enough, otherwise take all
+    img_paths = random.sample(all_paths, min(len(all_paths), num_images))
         
     print(f"Testing on {len(img_paths)} images from {img_dir}...")
     
@@ -55,8 +61,8 @@ def test_on_real_data(img_dir="output/images", out_dir="output/phase2_results", 
         # Overlay heatmap on original image
         overlay = overlay_gradcam(original_img, heatmap)
         
-        # Resize pred_mask to match original image for visualization
-        pred_mask_resized = cv2.resize(pred_mask, (original_img.shape[1], original_img.shape[0]))
+        # Resize pred_mask to match original image for visualization (smooth it out)
+        pred_mask_resized = cv2.resize(pred_mask, (original_img.shape[1], original_img.shape[0]), interpolation=cv2.INTER_CUBIC)
         pred_mask_vis = (pred_mask_resized * 255).astype(np.uint8)
         pred_mask_colored = cv2.cvtColor(pred_mask_vis, cv2.COLOR_GRAY2BGR)
         
@@ -71,5 +77,7 @@ def test_on_real_data(img_dir="output/images", out_dir="output/phase2_results", 
         print(f"Processed {filename} | Predicted Red Area (128x128 res): {red_pixel_area:.1f} | Saved: {out_path}")
 
 if __name__ == "__main__":
-    # Test on the first 10 synthetic twin images
-    test_on_real_data(num_images=10)
+    # Test on the generated synthetic dataset
+    dataset_path = "output/images"
+    print(f"Running model on synthetic dataset: {dataset_path}")
+    test_on_real_data(img_dir=dataset_path, num_images=10)
