@@ -89,17 +89,28 @@ class SyntheticSurgicalDataset(Dataset):
 
         return torch.tensor(image), torch.tensor(mask)
 
+from torch.utils.data import random_split
+
 def train_unet():
     device = torch.device('cpu') # Forcing CPU for hackathon compatibility as requested
     model = UNet().to(device)
     
-    dataset = SyntheticSurgicalDataset("output/images", "output/ground_truth")
+    dataset = SyntheticSurgicalDataset("output/synthetic_twins", "output/ground_truth")
     # If dataset is empty, skip gracefully
     if len(dataset) == 0:
         print("No training data found. Please run synthetic_generator.py first.")
         return
-        
-    loader = DataLoader(dataset, batch_size=4, shuffle=True)
+    
+    # Data Leakage Fix: Proper train/val/test split (80/10/10)
+    total_size = len(dataset)
+    train_size = int(0.8 * total_size)
+    val_size = int(0.1 * total_size)
+    test_size = total_size - train_size - val_size
+    
+    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
+    
+    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False)
     
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -110,7 +121,7 @@ def train_unet():
     for epoch in range(epochs):
         model.train()
         epoch_loss = 0
-        for images, masks in loader:
+        for images, masks in train_loader:
             images = images.to(device)
             masks = masks.to(device)
             
@@ -122,11 +133,40 @@ def train_unet():
             
             epoch_loss += loss.item()
             
-        print(f"Epoch {epoch+1}/{epochs}, Loss: {epoch_loss/len(loader):.4f}")
+        # Validation
+        model.eval()
+        val_loss = 0
+        with torch.no_grad():
+            for images, masks in val_loader:
+                images = images.to(device)
+                masks = masks.to(device)
+                outputs = model(images)
+                loss = criterion(outputs, masks)
+                val_loss += loss.item()
+        
+        print(f"Epoch {epoch+1}/{epochs}, Train Loss: {epoch_loss/len(train_loader):.4f}, Val Loss: {val_loss/len(val_loader):.4f}")
         
     Path("models").mkdir(exist_ok=True)
     torch.save(model.state_dict(), "models/unet_surgeguard.pth")
     print("Model saved to models/unet_surgeguard.pth")
+
+def analyze_temporal_sequence(masks):
+    """
+    Analyze a sequence of 30 masks for occult bleed detection.
+    If the cumulative red pixel area increases by >15% from first to last frame, trigger alert.
+    """
+    if len(masks) != 30:
+        raise ValueError("Sequence must contain exactly 30 masks")
+    
+    # Compute area for first and last frame
+    area_first = np.sum(masks[0])
+    area_last = np.sum(masks[-1])
+    
+    # Check if increase >15%
+    if area_last > area_first * 1.15:
+        return "Occult_Bleed_Alert: Cumulative red pixel area increased by >15%"
+    else:
+        return "No alert"
 
 if __name__ == "__main__":
     train_unet()
