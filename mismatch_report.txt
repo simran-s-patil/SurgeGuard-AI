@@ -1,0 +1,8 @@
+=== Data Verification Report ===
+
+Total files in SurgicalBlender/DeBlood_DeSmoke/data/trainA: 2
+Total files in SurgicalBlender/DeBlood_DeSmoke/data/trainB: 2
+Common files: 2
+
+Dimension Mismatches or Read Errors:
+ - None detected. All common files match perfectly.
