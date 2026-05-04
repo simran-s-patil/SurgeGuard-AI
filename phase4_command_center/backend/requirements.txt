@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+opencv-python
+numpy
+torch
+pydantic
+python-multipart
+pandas
+cryptography
