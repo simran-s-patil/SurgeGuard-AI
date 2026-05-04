@@ -1,0 +1,227 @@
+/* SURGESENSE CORE STYLES */
+:root {
+  --bg: #050508;
+  --card-bg: #111116;
+  --accent: #007aff;
+  --safe: #2ecc71;
+  --danger: #ff4757;
+  --text-main: #ffffff;
+  --text-dim: #666666;
+  --border: #222222;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+.surgical-app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* HEADER STYLE */
+header {
+  padding: 15px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+}
+
+.logo {
+  font-weight: 900;
+  font-size: 1.4rem;
+  letter-spacing: -1px;
+}
+
+.logo span {
+  color: var(--accent);
+}
+
+.status {
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+/* MAIN GRID LAYOUT */
+.main-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 2.2fr 1fr;
+  gap: 1px; /* Creates a clean divider line */
+  background-color: var(--border);
+}
+
+/* VIDEO SECTION */
+.video-feed {
+  background: #000;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-feed .label {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  font-size: 0.6rem;
+  font-weight: 900;
+  color: var(--text-dim);
+  z-index: 10;
+}
+
+.scanner {
+  position: absolute;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, transparent, var(--accent), transparent);
+  animation: scan 4s linear infinite;
+  opacity: 0.4;
+  z-index: 5;
+}
+
+@keyframes scan {
+  from { top: 0; }
+  to { top: 100%; }
+}
+
+/* SIDEBAR & CARDS */
+.sidebar {
+  background-color: var(--card-bg);
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.card label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+.risk-val {
+  font-size: 5rem;
+  font-weight: 900;
+  margin: 10px 0;
+  transition: 0.4s ease;
+}
+
+.risk-val.safe { color: var(--safe); }
+.risk-val.danger { 
+    color: var(--danger); 
+    text-shadow: 0 0 30px rgba(255, 71, 87, 0.4);
+}
+
+.bar {
+  height: 8px;
+  background: #222;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.fill {
+  height: 100%;
+  transition: 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* VITALS DISPLAY */
+.vitals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.vital {
+  background: #000;
+  padding: 15px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.vital canvas {
+    display: block;
+    margin-top: 10px;
+}
+
+/* INTERACTION BUTTONS */
+.buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+button {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #1a1a1f;
+  color: #fff;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+  font-size: 0.7rem;
+}
+
+button:hover {
+  background: #25252b;
+}
+
+.bleed-btn {
+  background: rgba(255, 71, 87, 0.1);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+/* CYBER AUDIT LOGS */
+.logs {
+  background: #000;
+  padding: 15px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 0.65rem;
+  flex-grow: 1;
+  overflow-y: hidden;
+}
+
+.log-head {
+  color: #333;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+
+.log-line {
+  margin-top: 6px;
+  padding-left: 8px;
+  border-left: 2px solid var(--accent);
+  color: #888;
+}
+
+.log-line.warn {
+  color: var(--danger);
+  border-left-color: var(--danger);
+}
