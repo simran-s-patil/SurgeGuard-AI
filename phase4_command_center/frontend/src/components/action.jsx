@@ -1,47 +1,81 @@
-const ActionHub = ({ riskScore, attackMode, onToggleAttack }) => {
-  const gaugeFill = Math.min(100, Math.max(0, riskScore * 120))
+import { AlertTriangle, Upload, Zap, Eye, EyeOff } from 'lucide-react'
+
+const ActionHub = ({ attackMode, onToggleAttack, epsilon, setEpsilon, status, onUpload }) => {
   return (
-    <div className="rounded-[2rem] bg-white p-6 shadow-panel border border-slate-200">
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Response Control</p>
-          <h2 className="text-xl font-semibold text-apollo-teal">Action Hub</h2>
+    <div className="glass-panel p-6 flex flex-col justify-between">
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400">Operation Control</h3>
+          <Zap size={16} className="text-amber-400" />
         </div>
-        <button
-          onClick={onToggleAttack}
-          className={`inline-flex items-center justify-center rounded-full px-5 py-2 text-sm font-semibold transition ${attackMode ? 'bg-apollo-success text-white' : 'bg-apollo-warn text-white'}`}
-        >
-          {attackMode ? 'Disable Hacker Demo' : 'Enable Hacker Demo'}
-        </button>
+
+        <div className="space-y-6">
+          <div className="p-5 rounded-2xl bg-white/5 border border-white/5">
+             <div className="flex items-center justify-between mb-4">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">System Log</span>
+                <div className="flex gap-1">
+                   <div className="w-1 h-1 rounded-full bg-cyan-500"></div>
+                   <div className="w-1 h-1 rounded-full bg-cyan-500/50"></div>
+                   <div className="w-1 h-1 rounded-full bg-cyan-500/20"></div>
+                </div>
+             </div>
+             <p className={`text-sm font-bold tracking-tight leading-tight ${status.includes('CRITICAL') ? 'text-red-400' : 'text-cyan-400'}`}>
+                {status}
+             </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Adversarial Bias</span>
+              <span className="text-[10px] font-mono text-cyan-400 font-bold">ε = {epsilon.toFixed(2)}</span>
+            </div>
+            <input 
+              type="range" 
+              min="0" 
+              max="1" 
+              step="0.05" 
+              value={epsilon} 
+              onChange={(e) => setEpsilon(parseFloat(e.target.value))}
+              className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-6">
-        <div className="rounded-[2rem] bg-apollo-light p-5 border border-slate-200">
-          <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Bleed Gauge</p>
-          <div className="mt-4 flex items-end gap-4">
-            <div className="h-28 w-20 overflow-hidden rounded-[1.5rem] bg-white shadow-inner border border-slate-200">
-              <div className="bg-apollo-warn" style={{ height: `${gaugeFill}%`, transition: 'height 0.3s ease' }} />
-            </div>
-            <div>
-              <div className="text-4xl font-semibold text-slate-900">{(riskScore * 100).toFixed(1)}%</div>
-              <div className="mt-2 text-sm text-slate-600">Current bleed risk index</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[2rem] bg-apollo-light p-5 border border-slate-200">
-          <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Procedure Priority</p>
-          <div className="mt-4 grid gap-3">
-            <div className="rounded-3xl bg-white p-4 border border-slate-200">
-              <div className="text-sm text-slate-500">Surgeon Alert</div>
-              <div className="mt-2 font-semibold text-slate-900">{riskScore > 0.7 ? 'Immediate intervention' : 'Monitor closely'}</div>
-            </div>
-            <div className="rounded-3xl bg-white p-4 border border-slate-200">
-              <div className="text-sm text-slate-500">Adaptive Shield</div>
-              <div className="mt-2 font-semibold text-slate-900">{attackMode ? 'Reinforced denoise' : 'Standard protection'}</div>
-            </div>
-          </div>
-        </div>
+      <div className="flex gap-4 mt-8">
+        <button 
+          onClick={onToggleAttack}
+          className={`flex-1 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 border ${
+            attackMode 
+              ? 'bg-red-500/20 border-red-500/40 text-red-400 hover:bg-red-500/30' 
+              : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'
+          }`}
+        >
+          {attackMode ? <Eye size={16} /> : <EyeOff size={16} />}
+          {attackMode ? 'Deactivate Attack' : 'Simulate Attack'}
+        </button>
+        
+        <label className="p-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white transition-all cursor-pointer shadow-lg shadow-cyan-900/20">
+          <Upload size={20} />
+          <input 
+            type="file" 
+            className="hidden" 
+            accept="video/*"
+            onChange={async (e) => {
+              const file = e.target.files[0]
+              if (!file) return
+              const formData = new FormData()
+              formData.append('file', file)
+              const res = await fetch('http://localhost:8000/upload/video', {
+                method: 'POST',
+                body: formData
+              })
+              const data = await res.json()
+              onUpload(data)
+              // Success notification will be handled by parent
+            }}
+          />
+        </label>
       </div>
     </div>
   )

@@ -1,50 +1,64 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Activity, Shield, AlertTriangle, Monitor, LogOut, ChevronRight } from 'lucide-react'
 import Hud from './components/hud'
-import Cyber from './components/cyber'
 import ActionHub from './components/action'
 import VideoPicker from './components/video_picker'
 import RiskGraph from './components/risk_graph'
+import Login from './components/login'
+import NotificationContainer from './components/notification'
 
 function Dashboard() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [connected, setConnected] = useState(false)
   const [attackMode, setAttackMode] = useState(false)
   const [frameData, setFrameData] = useState(null)
   const [history, setHistory] = useState([])
   const [telemetry, setTelemetry] = useState({ hr: [], bp: [], rr: [] })
-  const [status, setStatus] = useState('Select a surgical video to stream')
-  const [epsilon, setEpsilon] = useState(1.0)
+  const [status, setStatus] = useState('Standby - Waiting for Feed')
+  const [epsilon, setEpsilon] = useState(0.1)
   const [latency, setLatency] = useState(0)
   const [selectedFileName, setSelectedFileName] = useState('')
   const [videoPath, setVideoPath] = useState('')
+  const [notifications, setNotifications] = useState([])
   const wsRef = useRef(null)
 
   const riskTimeline = useMemo(() => history.slice(-40), [history])
 
   useEffect(() => {
-    if (!videoPath) {
-      return
-    }
+    if (!videoPath || !isLoggedIn) return
 
     const ws = new WebSocket('ws://localhost:8000/ws/stream')
     wsRef.current = ws
-    setStatus(`Connecting to backend for ${selectedFileName || 'video'}...`)
+    setStatus(`Initializing Link: ${selectedFileName}...`)
 
     ws.onopen = () => {
       setConnected(true)
-      setStatus(`Streaming ${selectedFileName || 'surgical footage'}...`)
+      setStatus(`LIVE FOOTAGE: ${selectedFileName}`)
       ws.send(JSON.stringify({ video_path: videoPath, attack_mode: attackMode, epsilon }))
     }
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data)
       if (data.error) {
-        setStatus(`Error: ${data.error}`)
+        setStatus(`System Fault: ${data.error}`)
         return
       }
       setFrameData(data)
       setLatency(data.processing_latency_ms || 0)
-      setStatus(data.security_status?.adversarial_attack ? 'ADVERSARIAL ATTACK DETECTED' : 'PROACTIVE MONITORING ACTIVE')
+      
+      if (data.security_status?.adversarial_attack) {
+        setStatus('CRITICAL: ADVERSARIAL INTERFERENCE')
+        addNotification('error', 'Adversarial attack detected! System integrity compromised.')
+      } else {
+        setStatus(`STABLE // ${selectedFileName}`)
+      }
+
+      if (data.is_bleeding && !frameData?.is_bleeding) {
+        addNotification('warning', 'Occult bleeding detected! Immediate medical attention required.')
+        playBuzzer()
+      }
+
       setHistory((prev) => [...prev, data.risk_score])
       const vitals = data.anonymized_vitals || {}
       setTelemetry((prev) => ({
@@ -56,122 +70,176 @@ function Dashboard() {
 
     ws.onclose = () => {
       setConnected(false)
-      setStatus('Stream disconnected')
+      setStatus('Feed Disconnected')
     }
 
-    ws.onerror = () => {
-      setStatus('WebSocket error')
-    }
+    ws.onerror = () => setStatus('Neural Link Fault')
 
     return () => ws.close()
-  }, [videoPath, attackMode, epsilon, selectedFileName])
+  }, [videoPath, attackMode, epsilon, selectedFileName, isLoggedIn])
 
-  const handleToggleAttack = () => {
-    setAttackMode((prev) => !prev)
+  const playBuzzer = () => {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+      const oscillator = audioCtx.createOscillator()
+      const gainNode = audioCtx.createGain()
+
+      oscillator.type = 'sawtooth' // Harsh buzzer sound
+      oscillator.frequency.setValueAtTime(440, audioCtx.currentTime)
+      
+      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5)
+
+      oscillator.connect(gainNode)
+      gainNode.connect(audioCtx.destination)
+
+      oscillator.start()
+      oscillator.stop(audioCtx.currentTime + 0.5)
+    } catch (e) {
+      console.error('Buzzer failed:', e)
+    }
   }
 
   const handleUploadComplete = ({ video_path, filename }) => {
     setSelectedFileName(filename)
     setVideoPath(video_path)
-    setStatus(`Ready to stream ${filename}`)
+    addNotification('success', `Video feed "${filename}" successfully loaded and synchronized.`)
   }
 
-  const riskScore = frameData?.risk_score ?? 0
-  const centroid = frameData?.centroid ?? [0, 0]
-  const securityStatus = frameData?.security_status ?? {}
+  const addNotification = (type, message) => {
+    const id = Date.now()
+    setNotifications(prev => [...prev, { id, type, message }])
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id))
+    }, 5000)
+  }
+
+  const closeNotification = (id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id))
+  }
+
+  if (!isLoggedIn) {
+    return <Login onLogin={setIsLoggedIn} />
+  }
 
   return (
-    <div className="min-h-screen bg-apollo-light text-slate-900 px-6 py-6">
-      <header className="mb-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">SurgeGuard-Twin Phase 4</p>
-          <h1 className="text-3xl font-semibold text-apollo-teal">SurgeGuard Command Center</h1>
-          <p className="mt-2 text-slate-600 max-w-2xl">Integrated surgical video analytics, security telemetry, and live risk visualization for biomedical operations.</p>
-        </div>
-        <div className="space-y-4 rounded-3xl bg-white p-4 shadow-panel border border-slate-200">
-          <div className="text-sm uppercase tracking-[0.18em] text-slate-500">System Status</div>
-          <div className="mt-2 text-xl font-bold text-apollo-teal">{status}</div>
-          <div className="mt-3 flex items-center gap-3 text-sm text-slate-600">
-            <span className={`inline-flex h-3 w-3 rounded-full ${connected ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
-            WebSocket {connected ? 'online' : 'offline'}
+    <div className="min-h-screen p-6 lg:p-8 max-w-[1600px] mx-auto overflow-hidden">
+      {/* Dynamic Header */}
+      <header className="mb-6 lg:mb-8 flex flex-col lg:flex-row lg:items-end justify-between gap-4 lg:gap-6">
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+        >
+          <div className="flex items-center gap-3 text-cyan-400 mb-2">
+            <Activity size={20} className="animate-pulse" />
+            <span className="text-[10px] uppercase tracking-[0.4em] font-bold">SurgeGuard Command v4.0</span>
           </div>
-          <VideoPicker onUpload={handleUploadComplete} />
-        </div>
+          <h1 className="text-4xl font-bold tracking-tight text-glow font-outfit">Operation<span className="text-cyan-400">Intelligence</span></h1>
+          <p className="mt-2 text-slate-400 max-w-xl text-sm leading-relaxed">
+            Real-time neural segmentation and cryptographic integrity monitoring for surgical environments.
+          </p>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="glass-card px-8 py-5 flex items-center gap-10"
+        >
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Mainframe Status</p>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-slate-600'}`}></div>
+              <span className={`text-sm font-bold ${connected ? 'text-emerald-400' : 'text-slate-400'}`}>
+                {connected ? 'ONLINE' : 'STBY'}
+              </span>
+            </div>
+          </div>
+          <div className="w-px h-10 bg-white/10"></div>
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Latency</p>
+            <p className="text-sm font-mono font-bold text-cyan-400">{latency}ms</p>
+          </div>
+          <button 
+            onClick={() => setIsLoggedIn(false)}
+            className="ml-4 p-2 rounded-full hover:bg-white/10 transition-colors text-slate-400 hover:text-white"
+          >
+            <LogOut size={20} />
+          </button>
+        </motion.div>
       </header>
 
-      <main className="grid gap-6 xl:grid-cols-[1.8fr_0.9fr]">
-        <section className="space-y-6">
-          <Hud frameData={frameData} riskTimeline={riskTimeline} centroid={centroid} attackMode={attackMode} />
-          <div className="grid gap-6 md:grid-cols-2">
-            <Cyber status={securityStatus} epsilon={epsilon} latency={latency} attackMode={attackMode} />
-            <ActionHub riskScore={riskScore} attackMode={attackMode} onToggleAttack={handleToggleAttack} />
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6 lg:gap-8">
+        
+        {/* Left Column: Primary Feed & Security */}
+        <div className="space-y-8 min-w-0">
+          <Hud 
+            frameData={frameData} 
+            riskTimeline={riskTimeline} 
+            centroid={frameData?.centroid ?? [0,0]} 
+            attackMode={attackMode} 
+          />
+          
+          <div className="grid grid-cols-1 gap-8">
+            <ActionHub 
+              attackMode={attackMode} 
+              onToggleAttack={() => setAttackMode(!attackMode)}
+              epsilon={epsilon}
+              setEpsilon={setEpsilon}
+              status={status}
+              onUpload={handleUploadComplete}
+            />
           </div>
-        </section>
+        </div>
 
-        <aside className="space-y-6">
-          <RiskGraph history={riskTimeline} />
-          <div className="rounded-3xl bg-white p-6 shadow-panel border border-slate-200">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Telemetry</p>
-                <h2 className="text-xl font-semibold text-apollo-teal">Vitals Trajectory</h2>
-              </div>
-              <span className="rounded-full bg-apollo-teal/10 px-3 py-1 text-sm text-apollo-teal">ε = {epsilon}</span>
+        {/* Right Column: Telemetry & Analytics */}
+        <aside className="space-y-8">
+          <div className="glass-panel p-6 space-y-6 overflow-hidden">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400">Biological Telemetry</h3>
+              <Activity size={16} className="text-cyan-500" />
             </div>
+            <RiskGraph history={history} />
+          </div>
+
+          <div className="glass-panel p-6 space-y-6">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400">Session Controls</h3>
+            <VideoPicker onUpload={handleUploadComplete} />
+            
             <div className="space-y-4">
-              <div className="rounded-3xl bg-apollo-light p-4">
-                <div className="flex items-center justify-between text-sm text-slate-600 mb-2">
-                  <span>Heart Rate</span>
-                  <strong>{telemetry.hr.slice(-1)[0] ?? 72} bpm</strong>
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer group">
+                <div className="flex items-center gap-3">
+                  <Shield size={18} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-medium">Auto-Encryption</span>
                 </div>
-                <div className="h-20 rounded-2xl bg-white border border-slate-200"></div>
+                <div className="w-10 h-5 bg-emerald-500/20 rounded-full relative p-1">
+                   <div className="w-3 h-3 bg-emerald-500 rounded-full ml-auto"></div>
+                </div>
               </div>
-              <div className="rounded-3xl bg-apollo-light p-4">
-                <div className="flex items-center justify-between text-sm text-slate-600 mb-2">
-                  <span>Blood Pressure</span>
-                  <strong>{telemetry.bp.slice(-1)[0] ?? 120}/80</strong>
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer group">
+                <div className="flex items-center gap-3">
+                  <Monitor size={18} className="text-cyan-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-medium">Neural Upscaling</span>
                 </div>
-                <div className="h-20 rounded-2xl bg-white border border-slate-200"></div>
-              </div>
-              <div className="rounded-3xl bg-apollo-light p-4">
-                <div className="flex items-center justify-between text-sm text-slate-600 mb-2">
-                  <span>Respiratory Rate</span>
-                  <strong>{telemetry.rr.slice(-1)[0] ?? 16} rpm</strong>
+                <div className="w-10 h-5 bg-cyan-500/20 rounded-full relative p-1">
+                   <div className="w-3 h-3 bg-cyan-500 rounded-full ml-auto"></div>
                 </div>
-                <div className="h-20 rounded-2xl bg-white border border-slate-200"></div>
               </div>
             </div>
           </div>
         </aside>
-      </main>
+      </div>
+      
+      {/* Notifications */}
+      <NotificationContainer notifications={notifications} onClose={closeNotification} />
+      
+      {/* Background Decor */}
+      <div className="fixed top-0 right-0 w-full h-full pointer-events-none -z-10 opacity-30">
+        <div className="absolute top-[10%] right-[10%] w-[500px] h-[500px] bg-apollo-teal/20 rounded-full blur-[150px]"></div>
+        <div className="absolute bottom-[20%] left-[5%] w-[400px] h-[400px] bg-cyan-500/10 rounded-full blur-[120px]"></div>
+      </div>
     </div>
   )
 }
 
-function Settings() {
-  return (
-    <div className="min-h-screen bg-apollo-light text-slate-900 px-6 py-6">
-      <h1 className="text-3xl font-semibold text-apollo-teal">Settings</h1>
-      <p>Configure system parameters here.</p>
-    </div>
-  )
-}
-
-function App() {
-  return (
-    <Router>
-      <nav className="bg-white shadow-panel border-b border-slate-200 px-6 py-4">
-        <div className="flex gap-6">
-          <Link to="/" className="text-apollo-teal font-semibold">Dashboard</Link>
-          <Link to="/settings" className="text-slate-600">Settings</Link>
-        </div>
-      </nav>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/settings" element={<Settings />} />
-      </Routes>
-    </Router>
-  )
-}
-
-export default App
+export default Dashboard

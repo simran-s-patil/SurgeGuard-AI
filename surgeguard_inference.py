@@ -156,7 +156,6 @@ def draw_risk_bar(frame, risk_score, bar_width=24, padding=12):
     return frame
 
 
-<<<<<<< HEAD
 def render_fail_safe(frame):
     cv2.putText(frame, "SECURITY BREACH: MANUAL VIEW", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 3)
     cv2.putText(frame, "AI OVERLAYS DISABLED", (20, 95), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
@@ -168,10 +167,7 @@ def overlay_hud(frame, mask, result, flash_on=True, security_status=True):
     if not security_status:
         return render_fail_safe(frame)
 
-=======
-def overlay_hud(frame, mask, result, flash_on=True):
     h, w = frame.shape[:2]
->>>>>>> d767a1e02a85062eaa52e7730160e7e379879d50
     heatmap = cv2.applyColorMap((mask * 255).astype(np.uint8), cv2.COLORMAP_JET)
     overlay = cv2.addWeighted(frame, 0.6, heatmap, 0.4, 0)
     overlay = draw_risk_bar(overlay, result['risk_score'])
@@ -184,15 +180,13 @@ def overlay_hud(frame, mask, result, flash_on=True):
     if result['alert_level'] == 'CRITICAL' and flash_on:
         cv2.putText(overlay, "⚠️ BLEED DETECTED", (20, 120), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 3)
         cv2.rectangle(overlay, (15, 100), (500, 140), (0, 0, 255), 2)
-<<<<<<< HEAD
-=======
     
     # Cybersecurity HUD
-    shield_color = (0, 255, 0) if result["is_authentic"] else (0, 0, 255)
-    shield_text = "🛡️ SHIELD: ACTIVE" if result["is_authentic"] else "⚠️ ATTACK DETECTED!"
+    is_authentic = result.get("is_authentic", security_status)
+    shield_color = (0, 255, 0) if is_authentic else (0, 0, 255)
+    shield_text = "🛡️ SHIELD: ACTIVE" if is_authentic else "⚠️ ATTACK DETECTED!"
     cv2.putText(overlay, shield_text, (20, h - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, shield_color, 2)
     
->>>>>>> d767a1e02a85062eaa52e7730160e7e379879d50
     return overlay
 
 
@@ -420,15 +414,18 @@ class VideoPipeline:
 
 
 def main():
-<<<<<<< HEAD
     parser = argparse.ArgumentParser(description='SurgeGuard threaded video inference with decision packet encryption')
-    parser.add_argument('--input', required=True, help='Path to input video file (.mp4, .avi)')
-    parser.add_argument('--model', default='models/unet_surgeguard.pt', help='Path to TorchScript or PyTorch model')
+    parser.add_argument('--input', required=True, help='Path to input video file (.mp4, .avi) or directory')
+    parser.add_argument('--model', default='models/unet_surgeguard.pth', help='Path to TorchScript or PyTorch model')
     parser.add_argument('--output', default='output/session_video.mp4', help='Path to output video file')
     parser.add_argument('--report', default='output/session_report.json', help='Path to JSON session report')
     parser.add_argument('--use_torchscript', action='store_true', help='Load a TorchScript model for faster inference')
     parser.add_argument('--secret-key', default=DEFAULT_PRIVATE_SECRET, help='Secret key for packet encryption and signing')
     args = parser.parse_args()
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input not found: {input_path}")
 
     pipeline = VideoPipeline(
         input_path=args.input,
@@ -439,111 +436,7 @@ def main():
         secret_key=args.secret_key,
     )
     pipeline.run()
-=======
-    parser = argparse.ArgumentParser(description="SurgeGuard video inference with HUD and session JSON export")
-    parser.add_argument("--input", required=True, help="Path to input video file (.mp4, .avi)")
-    parser.add_argument("--model", default="models/unet_surgeguard.pth", help="Path to TorchScript or PyTorch model")
-    parser.add_argument("--output", default="output/session_video.mp4", help="Path to output video file")
-    parser.add_argument("--report", default="output/session_report.json", help="Path to JSON session report")
-    parser.add_argument("--use_torchscript", action="store_true", help="Load a TorchScript model for faster inference")
-    args = parser.parse_args()
-
-    input_path = Path(args.input)
-    if not input_path.exists():
-        raise FileNotFoundError(f"Input not found: {input_path}")
->>>>>>> d767a1e02a85062eaa52e7730160e7e379879d50
 
 
-<<<<<<< HEAD
 if __name__ == '__main__':
-=======
-    # Determine if input is a video file or a directory of images
-    is_dir = input_path.is_dir()
-    if is_dir:
-        image_files = sorted([f for f in input_path.glob("*") if f.suffix.lower() in [".png", ".jpg", ".jpeg"]])
-        if not image_files:
-            raise FileNotFoundError(f"No images found in directory: {input_path}")
-        print(f"Processing directory: {input_path} ({len(image_files)} images)")
-        fps = 10.0 # Default FPS for image sequences
-        width, height = cv2.imread(str(image_files[0])).shape[1], cv2.imread(str(image_files[0])).shape[0]
-    else:
-        cap = cv2.VideoCapture(str(input_path))
-        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    out_path = Path(args.output)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    writer = cv2.VideoWriter(str(out_path), fourcc, fps, (width, height))
-
-    session_data = []
-    frame_id = 0
-    start_time = time.time()
-
-    while True:
-        if is_dir:
-            if frame_id >= len(image_files):
-                break
-            frame = cv2.imread(str(image_files[frame_id]))
-            ret = True if frame is not None else False
-        else:
-            ret, frame = cap.read()
-            
-        if not ret:
-            break
-
-        # 2. Cyber Security Check
-        # For the demo, we assume the frames are signed with our secret key
-        # We verify the signature and the watermark
-        secret_key = get_secret_key()
-        
-        # In a real streaming scenario, the hash/signature comes from the network packet
-        # Here we simulate by hashing the current frame
-        temp_path = "output/temp_frame.png"
-        cv2.imwrite(temp_path, frame)
-        frame_hash = compute_frame_hash(temp_path)
-        
-        # We sign it on the fly for demo consistency, 
-        # but simulate an "Attack" if frame_id is between 100 and 120
-        is_attack = 100 < frame_id < 120
-        
-        if is_attack:
-            signature = "fake_signature_123"
-        else:
-            signature = sign_hash(secret_key, frame_hash)
-            
-        is_authentic = verify_signature(secret_key, frame_hash, signature)
-        
-        # 1. AI Analysis
-        result, mask = inference.detect_bleed(frame)
-        result["is_authentic"] = is_authentic
-
-        flash_on = (frame_id // int(max(1, fps // 2))) % 2 == 0
-        rendered = overlay_hud(frame.copy(), mask, result, flash_on=flash_on)
-
-        writer.write(rendered)
-        session_data.append({
-            "frame_id": frame_id,
-            "timestamp": float(frame_id / fps),
-            **result
-        })
-
-        cv2.imshow("SurgeGuard", rendered)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-
-        frame_id += 1
-
-    if not is_dir:
-        cap.release()
-    writer.release()
-    cv2.destroyAllWindows()
-
-    write_session_report(args.report, session_data)
-    elapsed = time.time() - start_time
-    print(f"Processed {frame_id} frames in {elapsed:.2f}s ({frame_id / max(elapsed, 1e-6):.2f} FPS)")
-
-if __name__ == "__main__":
->>>>>>> d767a1e02a85062eaa52e7730160e7e379879d50
     main()

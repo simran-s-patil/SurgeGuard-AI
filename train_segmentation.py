@@ -25,42 +25,33 @@ class DoubleConv(nn.Module):
 class UNet(nn.Module):
     def __init__(self, in_channels=3, out_channels=1):
         super().__init__()
-        self.d1 = DoubleConv(in_channels, 64)
+        self.d1 = DoubleConv(in_channels, 16)
         self.p1 = nn.MaxPool2d(2)
-        self.d2 = DoubleConv(64, 128)
+        self.d2 = DoubleConv(16, 32)
         self.p2 = nn.MaxPool2d(2)
-        self.d3 = DoubleConv(128, 256)
-        self.p3 = nn.MaxPool2d(2)
-        self.d4 = DoubleConv(256, 512)
+        self.d3 = DoubleConv(32, 64)
         
-        self.up1 = nn.ConvTranspose2d(512, 256, 2, stride=2)
-        self.u1 = DoubleConv(512, 256)
-        self.up2 = nn.ConvTranspose2d(256, 128, 2, stride=2)
-        self.u2 = DoubleConv(256, 128)
-        self.up3 = nn.ConvTranspose2d(128, 64, 2, stride=2)
-        self.u3 = DoubleConv(128, 64)
+        self.up1 = nn.ConvTranspose2d(64, 32, 2, stride=2)
+        self.u1 = DoubleConv(64, 32)
+        self.up2 = nn.ConvTranspose2d(32, 16, 2, stride=2)
+        self.u2 = DoubleConv(32, 16)
         
-        self.out = nn.Conv2d(64, out_channels, 1)
+        self.out = nn.Conv2d(16, out_channels, 1)
 
     def forward(self, x):
         c1 = self.d1(x)
         c2 = self.d2(self.p1(c1))
         c3 = self.d3(self.p2(c2))
-        c4 = self.d4(self.p3(c3))
         
-        u1 = self.up1(c4)
-        u1 = torch.cat([u1, c3], dim=1)
+        u1 = self.up1(c3)
+        u1 = torch.cat([u1, c2], dim=1)
         u1 = self.u1(u1)
         
         u2 = self.up2(u1)
-        u2 = torch.cat([u2, c2], dim=1)
+        u2 = torch.cat([u2, c1], dim=1)
         u2 = self.u2(u2)
         
-        u3 = self.up3(u2)
-        u3 = torch.cat([u3, c1], dim=1)
-        u3 = self.u3(u3)
-        
-        return self.out(u3)
+        return self.out(u2)
 
 # --- Dataset Loader ---
 import torchvision.transforms.functional as TF
@@ -82,10 +73,10 @@ class SyntheticSurgicalDataset(Dataset):
 
         image = cv2.imread(img_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = cv2.resize(image, (128, 128)) # Smaller for fast hackathon training
+        image = cv2.resize(image, (64, 64)) # Extremely fast training size
         
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-        mask = cv2.resize(mask, (128, 128))
+        mask = cv2.resize(mask, (64, 64))
         
         # Convert to PyTorch tensors
         image_t = torch.tensor(image.astype(np.float32) / 255.0).permute(2, 0, 1)
@@ -101,11 +92,12 @@ class SyntheticSurgicalDataset(Dataset):
                 mask_t = TF.vflip(mask_t)
                 
             # Color augmentations (applied only to image)
-            hue_factor = random.uniform(-0.4, 0.4)
+            # Reduced hue jitter to preserve "red" blood characteristics
+            hue_factor = random.uniform(-0.1, 0.1)
             image_t = TF.adjust_hue(image_t, hue_factor)
-            sat_factor = random.uniform(0.5, 1.5)
+            sat_factor = random.uniform(0.8, 1.2)
             image_t = TF.adjust_saturation(image_t, sat_factor)
-            bright_factor = random.uniform(0.7, 1.3)
+            bright_factor = random.uniform(0.8, 1.2)
             image_t = TF.adjust_brightness(image_t, bright_factor)
 
         return image_t, mask_t
@@ -135,19 +127,28 @@ def train_unet():
     train_dataset = Subset(dataset_train, indices[:train_size])
     val_dataset = Subset(dataset_val, indices[train_size:train_size+val_size])
     
-    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
     
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     
-    epochs = 20
+    import sys
+    epochs = 10
+    if "--epochs" in sys.argv:
+        try:
+            epochs = int(sys.argv[sys.argv.index("--epochs") + 1])
+        except:
+            pass
     print(f"Starting Training for {epochs} epochs on {device}...")
+    
+    from tqdm import tqdm
     
     for epoch in range(epochs):
         model.train()
         epoch_loss = 0
-        for images, masks in train_loader:
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}")
+        for images, masks in pbar:
             images = images.to(device)
             masks = masks.to(device)
             
@@ -158,6 +159,7 @@ def train_unet():
             optimizer.step()
             
             epoch_loss += loss.item()
+            pbar.set_postfix(loss=loss.item())
             
         # Validation
         model.eval()
@@ -170,7 +172,7 @@ def train_unet():
                 loss = criterion(outputs, masks)
                 val_loss += loss.item()
         
-        print(f"Epoch {epoch+1}/{epochs}, Train Loss: {epoch_loss/len(train_loader):.4f}, Val Loss: {val_loss/len(val_loader):.4f}")
+        print(f"Epoch {epoch+1}/{epochs} Summary - Train Loss: {epoch_loss/len(train_loader):.4f}, Val Loss: {val_loss/len(val_loader):.4f}", flush=True)
         
     Path("models").mkdir(exist_ok=True)
     torch.save(model.state_dict(), "models/unet_surgeguard.pth")

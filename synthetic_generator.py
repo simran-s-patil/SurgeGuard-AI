@@ -73,16 +73,16 @@ def generate_vitals(twin_id, out_list, bleed_minute=3):
     bleed_start_sec = bleed_minute * 60
     remaining_secs = 600 - bleed_start_sec
 
-    hr_step = (target_hr - base_hr) / remaining_secs
-    sys_step = (base_sys - target_sys) / remaining_secs
-    dia_step = (base_dia - target_dia) / remaining_secs
+    hr_step = (target_hr - base_hr) / remaining_secs if remaining_secs > 0 else 0
+    sys_step = (base_sys - target_sys) / remaining_secs if remaining_secs > 0 else 0
+    dia_step = (base_dia - target_dia) / remaining_secs if remaining_secs > 0 else 0
 
     curr_hr = float(base_hr)
     curr_sys = float(base_sys)
     curr_dia = float(base_dia)
 
     for sec in range(600):
-        is_bleeding = 1 if sec >= bleed_start_sec else 0
+        is_bleeding = 1 if sec < 600 and sec >= bleed_start_sec else 0
 
         if is_bleeding:
             curr_hr += hr_step
@@ -125,46 +125,49 @@ def main(num_samples=1000):
 
     for i in tqdm(range(num_samples), desc="Generating Twins"):
         twin_id = f"twin_{i:04d}"
+        is_negative = random.random() < 0.2 # 20% chance of negative sample (no blood)
 
         # 1. Random Selection
         clean_path = random.choice(clean_files)
-        mask_path = random.choice(mask_files)
-
         clean_img = cv2.imread(str(clean_path))
-        raw_mask_img = cv2.imread(str(mask_path))
-
-        # Resize clean to standard 512x512
         clean_img = cv2.resize(clean_img, (512, 512))
 
-        # Resize raw_mask_img to standard 512x512
-        raw_mask_img = cv2.resize(raw_mask_img, (512, 512))
+        if is_negative:
+            # Negative sample: just the clean image, black mask
+            blended = clean_img
+            gt_mask = np.zeros((512, 512), dtype=np.uint8)
+        else:
+            # Positive sample: blend with blood
+            mask_path = random.choice(mask_files)
+            raw_mask_img = cv2.imread(str(mask_path))
+            raw_mask_img = cv2.resize(raw_mask_img, (512, 512))
 
-        # Extract RGB blood and alpha from the black-background image
-        blood_rgb, blood_alpha = process_mask_image(raw_mask_img)
+            # Extract RGB blood and alpha from the black-background image
+            blood_rgb, blood_alpha = process_mask_image(raw_mask_img)
 
-        # Simple augmentation instead of albumentations
-        aug_blood, aug_alpha = simple_augment_blood_mask(blood_rgb, blood_alpha)
+            # Simple augmentation instead of albumentations
+            aug_blood, aug_alpha = simple_augment_blood_mask(blood_rgb, blood_alpha)
 
-        # Random Opacity scaling (0.4 to 0.8)
-        opacity = random.uniform(0.4, 0.8)
+            # Random Opacity scaling (0.4 to 0.8)
+            opacity = random.uniform(0.4, 0.8)
 
-        # Normalize alpha to 0-1 range and apply opacity factor
-        alpha_norm = (aug_alpha.astype(float) / 255.0) * opacity
-        alpha_norm = np.expand_dims(alpha_norm, axis=-1)
+            # Normalize alpha to 0-1 range and apply opacity factor
+            alpha_norm = (aug_alpha.astype(float) / 255.0) * opacity
+            alpha_norm = np.expand_dims(alpha_norm, axis=-1)
 
-        # Blend
-        blended = clean_img * (1 - alpha_norm) + aug_blood * alpha_norm
-        blended = np.clip(blended, 0, 255).astype(np.uint8)
+            # Blend
+            blended = clean_img * (1 - alpha_norm) + aug_blood * alpha_norm
+            blended = np.clip(blended, 0, 255).astype(np.uint8)
 
-        # Ground Truth Mask (binary)
-        _, gt_mask = cv2.threshold(aug_alpha, 30, 255, cv2.THRESH_BINARY)
+            # Ground Truth Mask (binary)
+            _, gt_mask = cv2.threshold(aug_alpha, 30, 255, cv2.THRESH_BINARY)
 
         # Save Outputs
         cv2.imwrite(str(out_img_dir / f"{twin_id}.png"), blended)
         cv2.imwrite(str(out_gt_dir / f"{twin_id}.png"), gt_mask)
 
-        # Generate Vitals
-        generate_vitals(twin_id, vitals_data)
+        # Generate Vitals (bleeding starts later for positives, stays base for negatives)
+        generate_vitals(twin_id, vitals_data, bleed_minute=3 if not is_negative else 10)
 
     # Save Vitals
     df = pd.DataFrame(vitals_data)
@@ -173,7 +176,7 @@ def main(num_samples=1000):
 
 if __name__ == "__main__":
     import sys
-    num = 1000
+    num = 100
     if len(sys.argv) > 1:
         num = int(sys.argv[1])
     main(num_samples=num)
